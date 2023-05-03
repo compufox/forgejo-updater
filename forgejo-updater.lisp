@@ -79,7 +79,7 @@
                              :element-type '(unsigned-byte 8))
           (loop :with file := (drakma:http-request (cdr rel-link) :want-stream t)
                 :for byte := (read-byte file nil nil)
-                :until byte
+                :while byte
                 :do (write-byte byte out)))
         save-path)
       (format t "Unable to find download link for sepecified arch: ~A~%" arch))))
