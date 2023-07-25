@@ -8,6 +8,8 @@
 (defvar *current-program-version* nil
   "the current running forgejo program's version")
 
+(defvar *verbose* nil)
+
 (opts:define-opts
  (:name :help
   :description "prints this help"
@@ -41,7 +43,7 @@
   :arg-parse #'identity
   :meta-var "ARCH")
  (:name :restart-command
-  :description "pass the command to restart the forgejo process (default: systemctl restart forgejo)"
+  :description "pass the command to restart the forgejo process (default: sudo systemctl restart forgejo)"
   :long "restart-command"
   :arg-parser #'identity
   :meta-var "COMMAND")
@@ -51,7 +53,10 @@
  (:name :verbose
   :description "prints logging info"
   :short #\v
-  :long "verbose"))
+  :long "verbose")
+ (:name :force-root
+  :description "force binary to run as root"
+  :long "run-as-root"))
 
 (defun parse-links (dom)
   (loop :for elt :across (clss:select "li > a" dom)
@@ -68,7 +73,7 @@
          (rel-link (assoc arch (parse-links dom)
                           :test #'(lambda (k v)
                                     (str:ends-with-p k v)))))
-    (format t "Parsed releases~%")
+    (logger "Parsing releases...~%")
     (if rel-link
       (let ((save-path (or download-location 
                            (str:concat "/tmp/" (car (last (str:split "/" link)))))))
@@ -90,62 +95,76 @@
   (let ((old-path (uiop:run-program "which forgejo" :output '(:string :stripped t))))
     (uiop:run-program (list "chmod" "+x" new-release))
 
-    ;(logger "Backing up old version to ~A~%" (str:concat old-path ".old"))
+    (logger "Backing up old version to ~A~%" (str:concat old-path ".old"))
     (uiop:run-program (list "mv" old-path (str:concat old-path ".old")))
     (uiop:run-program (list "mv" new-release old-path))))
 
 (defun restart-process (cmd)
+  (declare (inline))
+  (logger "Restarting service...~%")
   (uiop:run-program cmd))
 
+(defun user-is-root-p ()
+  (delcare (inline))
+  (string= "root" (uiop:run-program "whoami" :output '(:string :stripped t))))
+
 (defmacro logger (&rest rest)
-  `(when (getf opts :verbose)
+  `(when *verbose*
      (format t ,@rest)))
 
 (defun main ()
   "binary entry point"
-
   (multiple-value-bind (opts args) (opts:get-opts)
+    (when (user-is-root-p)
+      (if (getf opts :force-root)
+          (format t "running as root (derogatory)")
+          (progn
+            (format t "refusing to run as root user~%")
+            (uiop:quit 1))))
+    
     (when (getf opts :help)
       (opts:describe :usage-of "fupdater")
       (uiop:quit 0))
-
+    
     (when (getf opts :version)
       (format t "fupdater v~A~&"
               #.(asdf:component-version (asdf:find-system :forgejo-updater)))
       (uiop:quit 0))
     
+    (setf *verbose* (getf opts :verbose))
+    
     (setf *current-program-version*
           (if (getf opts :force)
               ""
               (nth 3 (str:words (uiop:run-program '("forgejo" "--version") :output '(:string :stripped t))))))
-
+    
     (handler-case 
         (with-user-abort
-         (let* ((feed (feedparser:parse-feed (drakma:http-request +forgejo-release-rss+ :decode-content t)))
-                (most-recent (first (gethash :entries feed))))
-           (when (string< *current-program-version* (gethash :title most-recent))
-             (if (getf opts :download)
-                 (let ((path (download-release (gethash :link most-recent)
-                                               (getf opts :arch "linux-amd64")
-                                               (getf opts :download-location))))
-                   (logger "Found new version!~%")
-                   (if path
-                     (if (getf opts :update)
-                       (progn
-                         (logger "Downloaded new release...")
-                         (update-binary path)
-
-                         (when (getf opts :restart-process)
-                           (logger "Restarting Forgejo process...")
-                           (restart-process (getf opts :restart-command "systemctl restart forgejo"))))
-                       (format t "Downloaded release ~A to ~A~%" (gethash :title most-recent) path))
-                     (format t "Unable to find release for arch ~A~%" (getf opts :arch "linux-amd64"))))
-               (format t "New Forgejo Version Available: ~A~%" (gethash :title most-recent))))))
-    
+          (let* ((feed (feedparser:parse-feed (drakma:http-request +forgejo-release-rss+ :decode-content t)))
+                 (most-recent (first (gethash :entries feed))))
+            (when (string< *current-program-version* (gethash :title most-recent))
+              (if (getf opts :download)
+                  (let ((path (download-release (gethash :link most-recent)
+                                                (getf opts :arch "linux-amd64")
+                                                (getf opts :download-location))))
+                    (logger "Found new version!~%")
+                    (if path
+                        (if (getf opts :update)
+                            (progn
+                              (logger "Downloaded new release...")
+                              (update-binary path)
+                              
+                              (when (getf opts :restart-process)
+                                (logger "Restarting Forgejo process...")
+                                (restart-process (getf opts :restart-command "sudo systemctl restart forgejo"))))
+                            (format t "Downloaded release ~A to ~A~%" (gethash :title most-recent) path))
+                        (format t "Unable to find release for arch ~A~%" (getf opts :arch "linux-amd64"))))
+                  (format t "New Forgejo Version Available: ~A~%" (gethash :title most-recent))))))
+      
       (user-abort ()
         (format t "~&Quitting...~%")
-        (uiop:quit 0)))))
-
-;      (error (e)
-;        (format t "Encountered error: ~A~%" e)
-;        (uiop:quit 1)))))
+        (uiop:quit 0))
+      
+      (error (e)
+        (format t "Encountered error: ~A~%" e)
+        (uiop:quit 1)))))
