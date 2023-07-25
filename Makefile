@@ -1,24 +1,19 @@
-LISPS = ros sbcl clisp cmucl ccl
-CMDS = --eval "(ql:quickload :forgejo-updater)" --eval "(asdf:make :forgejo-updater)" --eval "(quit)"
+SYSTEM_NAME = forgejo-updater
+define LISP_CMDS
+"(handler-case                    \
+    (progn (ql:quickload :SYSTEM) \
+           (asdf:make :SYSTEM))   \
+  (error (e)                      \
+    (format t \"~A~%\" e)         \
+    (uiop:quit 1)))"
+endef
 
-
-ifeq ($(OS),Windows_NT)
-	LISP := $(foreach lisp,$(LISPS), \
-		$(shell where $(lisp)) \
-		$(if $(.SHELLSTATUS),$(strip $(lisp)),))
-else
-	LISP := $(foreach lisp,$(LISPS), \
-		$(if $(findstring $(lisp),"$(shell which $(lisp) 2>/dev/null)"), $(strip $(lisp)),))
-endif
-
-ifeq ($(LISP),)
-	$(error "No lisps found")
-endif
+CMDS = --eval $(subst SYSTEM,$(SYSTEM_NAME),$(LISP_CMDS))
 
 .PHONY: clean all
 
 all:
-	$(LISP) $(CMDS)
+	ros $(CMDS)
 
 clean: 
 	rm -rf bin/
