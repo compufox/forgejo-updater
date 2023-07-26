@@ -115,6 +115,8 @@
 (defun main ()
   "binary entry point"
   (multiple-value-bind (opts args) (opts:get-opts)
+    (setf *verbose* (getf opts :verbose))
+
     (when (getf opts :help)
       (opts:describe :usage-of "fupdater")
       (uiop:quit 0))
@@ -126,12 +128,10 @@
 
     (when (user-is-root-p)
       (if (getf opts :force-root)
-          (format t "running as root (derogatory)")
+          (logger "running as root (derogatory)~%") 
           (progn
             (format t "refusing to run as root user~%")
             (uiop:quit 1))))
-    
-    (setf *verbose* (getf opts :verbose))
     
     (setf *current-program-version*
           (if (getf opts :force)
