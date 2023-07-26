@@ -115,13 +115,6 @@
 (defun main ()
   "binary entry point"
   (multiple-value-bind (opts args) (opts:get-opts)
-    (when (user-is-root-p)
-      (if (getf opts :force-root)
-          (format t "running as root (derogatory)")
-          (progn
-            (format t "refusing to run as root user~%")
-            (uiop:quit 1))))
-    
     (when (getf opts :help)
       (opts:describe :usage-of "fupdater")
       (uiop:quit 0))
@@ -130,6 +123,13 @@
       (format t "fupdater v~A~&"
               #.(asdf:component-version (asdf:find-system :forgejo-updater)))
       (uiop:quit 0))
+
+    (when (user-is-root-p)
+      (if (getf opts :force-root)
+          (format t "running as root (derogatory)")
+          (progn
+            (format t "refusing to run as root user~%")
+            (uiop:quit 1))))
     
     (setf *verbose* (getf opts :verbose))
     
