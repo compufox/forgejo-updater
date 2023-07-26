@@ -2,6 +2,8 @@
 
 (in-package #:forgejo-updater)
 
+(declaim (inline user-is-root-p restart-process))
+
 (eval-when (:compile-toplevel)
   (defconstant +forgejo-release-rss+ "https://codeberg.org/forgejo/forgejo/releases.rss"))
 
@@ -100,12 +102,10 @@
     (uiop:run-program (list "mv" new-release old-path))))
 
 (defun restart-process (cmd)
-  (declare (inline))
   (logger "Restarting service...~%")
   (uiop:run-program cmd))
 
 (defun user-is-root-p ()
-  (delcare (inline))
   (string= "root" (uiop:run-program "whoami" :output '(:string :stripped t))))
 
 (defmacro logger (&rest rest)
