@@ -164,7 +164,7 @@
         (with-user-abort
           (let* ((feed (feedparser:parse-feed (drakma:http-request +forgejo-release-rss+ :decode-content t)))
                  (most-recent (first (gethash :entries feed))))
-            (when (string< *current-program-version* (gethash :title most-recent))
+            (if (string< *current-program-version* (gethash :title most-recent))
               (if (getf opts :download)
                   (let ((path (download-release (gethash :link most-recent)
                                                 (getf opts :arch "linux-amd64")
@@ -184,12 +184,13 @@
                                 (format t "Unable to verify release, not upgrading.~%"))
                             (format t "Downloaded release ~A to ~A~%" (gethash :title most-recent) path))
                         (format t "Unable to find release for arch ~A~%" (getf opts :arch "linux-amd64"))))
-                  (format t "New Forgejo Version Available: ~A~%" (gethash :title most-recent))))))
+                  (format t "New Forgejo Version Available: ~A~%" (gethash :title most-recent)))
+              (logger "No new release found...~%"))))
       
       (user-abort ()
         (format t "~&Quitting...~%")
         (uiop:quit 0))
       
       (error (e)
-        (format t "Encountered error: ~A~%" e)
+        (format t "~A~%" e)
         (uiop:quit 1)))))
