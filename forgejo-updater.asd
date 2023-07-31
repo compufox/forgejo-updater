@@ -4,7 +4,7 @@
   :description "Describe forgejo-updater here"
   :author "a. fox"
   :license  "MIT"
-  :version "0.0.1"
+  :version "0.1"
   :serial t
   :depends-on (#:cl-feedparser #:clss #:drakma #:with-user-abort
                #:plump #:str #:unix-opts)
