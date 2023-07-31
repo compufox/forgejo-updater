@@ -78,7 +78,7 @@
     (uiop:run-program '("gpg" "--keyserver" "keys.openpgp.org" "--recv" "EB114F5E6C0DC2BCDD183550A4B61A2DC5923710"))))
 
 (defun verify-file-integrity (signature-path file-path)
-  (logger "verifying binary integrity...")
+  (logger "verifying binary integrity...~%")
   (handler-case
       (uiop:run-program (list "gpg" "--verify" signature-path file-path))
     (uiop:subprocess-error (e)
@@ -172,11 +172,9 @@
                         (if (getf opts :update)
                             (if (verify-file-integrity sig path)
                                 (progn
-                                  (logger "Downloaded new release...")
                                   (update-binary path)
                                   
                                   (when (getf opts :restart-process)
-                                    (logger "Restarting Forgejo process...")
                                     (restart-process (getf opts :restart-command "sudo systemctl restart forgejo"))))
                                 (format t "Unable to verify release, not upgrading.~%"))
                             (format t "Downloaded release ~A to ~A~%" (gethash :title most-recent) path))
