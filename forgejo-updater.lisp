@@ -150,7 +150,12 @@
     (setf *current-program-version*
           (if (getf opts :force)
               ""
-              (nth 3 (str:words (uiop:run-program '("forgejo" "--version") :output '(:string :stripped t))))))
+              (str:concat "v"
+                          (str:replace-all "+" "-"
+                                           (nth 3
+                                                (str:words
+                                                 (uiop:run-program '("forgejo" "--version")
+                                                                   :output '(:string :stripped t))))))))
 
     ;; checks and adds the forgejo signing keys as needed
     (ensure-keyserv-added)
