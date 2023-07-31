@@ -60,6 +60,10 @@
   :description "force binary to run as root"
   :long "run-as-root"))
 
+(defmacro logger (&rest rest)
+  `(when *verbose*
+     (format t ,@rest)))
+
 (defun parse-links (dom)
   (logger "Parsing releases...~%")
   (loop :for elt :across (clss:select "li > a" dom)
@@ -68,12 +72,18 @@
                    ,(str:trim (plump:attribute elt "href")))))
 
 (defun ensure-keyserv-added ()
-  (unless (uiop:run-program '("grep" "-i" "forgejo")
-                            :input (uiop:run-program '("gpg" "--list-public-keys")))
+  (unless (handler-case (uiop:run-program '("gpg" "-k" "EB114F5E6C0DC2BCDD183550A4B61A2DC5923710"))
+            (uiop/run-program:subprocess-error (e)
+              nil))
     (uiop:run-program '("gpg" "--keyserver" "keys.openpgp.org" "--recv" "EB114F5E6C0DC2BCDD183550A4B61A2DC5923710"))))
 
 (defun verify-file-integrity (signature-path file-path)
-  (uiop:run-program (list "gpg" "--verify" signature-path file-path)))
+  (logger "verifying binary integrity...")
+  (handler-case
+      (uiop:run-program (list "gpg" "--verify" signature-path file-path))
+    (uiop:subprocess-error (e)
+      (return-from verify-file-integrity nil)))
+  t)
 
 (defun download-release (link arch download-location)
   ;; fetch HTML from release page
@@ -115,10 +125,6 @@
 
 (defun user-is-root-p ()
   (string= "root" (uiop:run-program "whoami" :output '(:string :stripped t))))
-
-(defmacro logger (&rest rest)
-  `(when *verbose*
-     (format t ,@rest)))
 
 (defun main ()
   "binary entry point"
